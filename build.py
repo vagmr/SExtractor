@@ -20,8 +20,24 @@ def build():
             "--noconsole",
             "--noconfirm",
             "--clean",
-            # 添加所需的数据文件
+            # 添加所需的数据文件和路径
             "--add-data=main/locale;main/locale",
+            "--add-data=src;src",  # 添加src目录
+            "--add-data=main;main",  # 添加main目录
+            "--add-data=libs;libs",  # 添加libs目录
+            # 添加必要的隐式导入
+            "--hidden-import=main.mainWindow",
+            "--hidden-import=main.ui_mainWindow",
+            "--hidden-import=main.configManager",
+            "--hidden-import=main.batchManager",
+            "--hidden-import=main.statusBar",
+            "--hidden-import=src.main_extract_txt",
+            "--hidden-import=src.main_extract_bin",
+            "--hidden-import=src.main_extract_json",
+            "--hidden-import=src.main_extract",
+            "--hidden-import=src.merge_json",
+            "--hidden-import=src.common",
+            "--hidden-import=src.extract_Cyberworks",
             # 如果有其他需要打包的数据文件，在这里添加
         ]
     )
