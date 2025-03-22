@@ -9,14 +9,16 @@ selMinCount = 10 #提取时选项函数最小参数个数
 selMaxCount = 99 #提取时选项函数最大参数个数
 #版本对应code
 Codes = [
-	{'min': 0x1DC, 'max': 0x1DC, 'sce': [0x5A], 'sel': 0x1D, 'endpara': []},
-	{'min': 0x1E1, 'max': 0x1EB, 'sce': [0x6A], 'sel': 0x2C, 'endpara': []},
-	{'min': 0x1F4, 'max': 0x1F4, 'sce': [0x5A], 'sel': 0x1D, 'endpara': []},
-	{'min': 0x1C2, 'max': 0x22A, 'sce': [0x5B], 'sel': 0x1D, 'endpara': []},
-	{'min': 0x22B, 'max': 0xFFF, 'sce': [0x6C], 'sel': 0x2B, 'endpara': []},
-	{'min': 0x0,   'max': 0xE0,  'sce': [0x4A], 'sel': 0x16, 'endpara': [0x32], 'retcode': 0xFF, 'nostr': [0x1E, 0x32]},
-	{'min': 0x0,   'max': 0x1C1, 'sce': [0x57], 'sel': 0x1A, 'endpara': [], 'retcode': 0x3B, 'nostr': []},
-	{'min': 0x0,   'max': 0xFFF, 'sce': [0x5A], 'sel': 0x1D, 'endpara': [], 'retcode': 0xFF, 'nostr': []},
+	{'min': 0x1DC, 'max': 0x1DC, 'sce': [0x5A], 'sel': [0x1D], 'endpara': []},
+	{'min': 0x1E1, 'max': 0x1EB, 'sce': [0x6A], 'sel': [0x2C], 'endpara': []},
+	{'min': 0x1F4, 'max': 0x1F4, 'sce': [0x5A], 'sel': [0x1D], 'endpara': []},
+	{'min': 0x1C2, 'max': 0x22A, 'sce': [0x5B], 'sel': [0x1D, 0x27], 'endpara': []},
+	{'min': 0x22B, 'max': 0xFFF, 'sce': [0x6C], 'sel': [0x2B], 'endpara': []},
+	{'min': 0x000, 'max': 0x010, 'sce': [0x33], 'sel': [0x27], 'endpara': [], 'retcode': 0xFF, 'nostr': [0x19, 0x26]},
+	{'min': 0x000, 'max': 0x0E0, 'sce': [0x4A], 'sel': [0x16], 'endpara': [0x32], 'retcode': 0xFF, 'nostr': [0x1E, 0x32]},
+	{'min': 0x0EE, 'max': 0x0EE, 'sce': [0x25], 'sel': [0x14], 'endpara': [], 'retcode': 0x2D, 'nostr': []},
+	{'min': 0x000, 'max': 0x1C1, 'sce': [0x57], 'sel': [0x1A], 'endpara': [], 'retcode': 0x3B, 'nostr': []},
+	{'min': 0x000, 'max': 0xFFF, 'sce': [0x5A], 'sel': [0x1D], 'endpara': [], 'retcode': 0xFF, 'nostr': []},
 ]
 Keys = [
 	{'min': 0x1E1, 'max': 0x1E8, 'key': b'\x0B\x8F\x00\xB1'},
@@ -25,10 +27,17 @@ Keys = [
 ]
 
 insertContent = {}
+outputAll = False
 # ---------------- Engine: Yu-ris -------------------
 def initExtra():
-	global selMinCount
-	global selMaxCount
+	global selMinCount, selMaxCount
+	global outputAll
+	if ExVar.extraData == 'all':
+		selMinCount = 1
+		outputAll = True
+		return
+	else:
+		outputAll = False
 	lst = ExVar.extraData.split(',')
 	if len(lst) > 0:
 		selMinCount = int(lst[0]) or 10
@@ -46,25 +55,27 @@ def parseImp(content, listCtrl, dealOnce):
 		count, textType = cmd[1], cmd[2]
 		if textType == 0 or textType == 10:
 			#文本
-			dealStr(content, var, paraIndex, textType)
-		elif textType == 1:
+			dealStr(content, var, paraIndex, cmd)
+		elif textType == 1 or (outputAll and textType > -2):
 			#选项
 			if selMinCount <= count <= selMaxCount:
 				for j in range(count):
-					dealStr(content, var, paraIndex + j)
+					dealStr(content, var, paraIndex + j, cmd)
 		paraIndex += count
 
 #处理单个bin字符串
-def dealStr(content, var:ParseVar, paraIndex, textType=0):
+def dealStr(content, var:ParseVar, paraIndex, cmd):
 	contentIndex = manager.getContentIndex(paraIndex)
 	var.lineData = content[contentIndex]['text']
 	var.contentIndex = contentIndex
 	ctrls = searchLine(var)
 	if ctrls and len(ctrls) > 0:
 		content[contentIndex]['ref'].append(paraIndex)
-		if textType == 10:
+		if cmd[2] == 10: #textType
 			if 'unfinish' in ctrls[-1]:
 				del ctrls[-1]['unfinish']
+		if outputAll:
+			printDebug(f'Code<{cmd[0]:02X}>: {ExVar.listOrig[-1]}')
 
 # -----------------------------------
 def replaceOnceImp(content, lCtrl, lTrans):
@@ -208,8 +219,14 @@ class DataManager():
 			textType = -1
 			if code in self.codeSce: #文本
 				textType = 0
-			elif code == self.codeSel: #选项
+			elif code in self.codeSel: #选项
 				textType = 1
+			if code in self.codeEndpara: #段落结束
+				if textType == 0:
+					textType = 10
+				elif len(self.cmdList) > 0:
+					if self.cmdList[-1][textType] == 0:
+						self.cmdList[-1][textType] = 10
 			#正常保存字节
 			self.cmdList.append([code, count, textType])
 
@@ -232,6 +249,7 @@ class DataManager():
 	def init(self, data):
 		#header
 		self.headerLen = 0x20
+		self.OneParaLen = 0xC
 		v = int(ExVar.version, 0)
 		if v > 0: 
 			self.version = v
@@ -251,8 +269,10 @@ class DataManager():
 			self.structType = 2
 			if self.version <= 0xE0:
 				self.OneParaLen = 0x10
+			if self.version <= 0x10:
+				self.cmdHeadLen = 0xC
 			else:
-				self.OneParaLen = 0xC
+				self.cmdHeadLen = 0x6
 		else:
 			print(f'\033[33m当前ybn版本暂不支持\033[0m: 0x{self.version:X}')
 			return None
@@ -356,13 +376,13 @@ class DataManager():
 				Codes[-1]['sce'] = [cmdCode]
 				printInfo('命令：', text, hex(cmdCode), paraCount)
 			elif text == 'GOSUB':
-				Codes[-1]['sel'] = cmdCode
+				Codes[-1]['sel'] = [cmdCode]
 				printInfo('命令：', text, hex(cmdCode), paraCount)
 			elif text == 'RETURNCODE':
 				Codes[-1]['retcode'] = cmdCode
 				printInfo('命令：', text, hex(cmdCode), paraCount)
-			#else:
-				#printDebug('命令：', text, hex(cmdCode), paraCount)
+			else:
+				printDebug('命令：', text, hex(cmdCode), paraCount)
 			for paraCode in range(paraCount):
 				#参数
 				bs = readStr(data, pos)
@@ -397,12 +417,15 @@ class DataManager():
 		pos = 0
 		while pos < self.cmdLen:
 			#单个command
-			code, count = struct.unpack('<BB', self.cmdSec[pos:pos+2])
-			headLen = 6
+			headLen = self.cmdHeadLen
+			if self.cmdHeadLen == 0xC:
+				code, count = struct.unpack('<II', self.cmdSec[pos:pos+8])
+			else:
+				code, count = struct.unpack('<BB', self.cmdSec[pos:pos+2])
 			textType = -1
 			if code in self.codeSce: #文本
 				textType = 0
-			elif code == self.codeSel: #选项
+			elif code in self.codeSel: #选项
 				textType = 1
 			elif code == self.codeRetcode: #retcode
 				count = 0

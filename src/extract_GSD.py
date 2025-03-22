@@ -83,9 +83,9 @@ def readFileDataImp(fileOld, contentSeparate):
 	return manager.content, manager.insertContent
 
 class GSDManager():
-	textBytes = b'\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\xFF\xFF'
 	#selectStr = 'select.spt'
 	#selectBytesAdd = b'\x01\x00\x00\x00\xFF\xFF\xFF\xFF'
+	charKey = 0x07
 	patZero = re.compile(b'\x00')
 	patText = None
 	infoList = []
@@ -99,6 +99,37 @@ class GSDManager():
 		self.content.clear()
 		self.insertContent.clear()
 		self.isGlobal = False
+		self.version = ExVar.version
+		self.ctrlKey = set()
+		self.endKey = 0x08
+		self.selectByte = 0x23
+		if self.version == 2:
+			self.textBytes = b'\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+			self.endKey = 0x0A
+			self.ctrlKey = { 0x5 }
+		elif self.version == 3:
+			self.textBytes = b'\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+			self.endKey = 0x0C
+			self.ctrlKey = { 0x5 }
+			self.selectByte = 0x25
+		else:
+			self.textBytes = b'\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xFF\xFF\xFF\xFF'
+		if ExVar.endStr:
+			if isinstance(ExVar.endStr, str):
+				self.endKey = eval(ExVar.endStr)
+			else:
+				self.endKey = ExVar.endStr
+		if ExVar.ctrlStr:
+			if isinstance(ExVar.ctrlStr, str):
+				s = set()
+				for i in ExVar.ctrlStr.split(','):
+					s.add(eval(i))
+				self.ctrlKey = s
+			else:
+				self.ctrlKey = {ExVar.ctrlStr}
+		if self.endKey - self.charKey > 1:
+			for i in range(self.charKey, self.endKey):
+				self.ctrlKey.add(i)
 
 	# ----------------- global.dat -------------------
 	def readGlobal(self, data):
@@ -120,10 +151,10 @@ class GSDManager():
 			cmdCount = readInt(data, pos)
 			pos += 4
 			for i in range(cmdCount):
-				for j in range(3): #最多3个str
+				for j in range(2): #2个str
 					length = readInt(data, pos)
 					pos += 4 + length
-				pos += 4 * 0x22 #22个int
+				pos += 4 * 0x23 #23个int
 		#名字区域
 		cmdCount = readInt(data, pos)
 		pos += 4
@@ -149,8 +180,11 @@ class GSDManager():
 	def writeGlobal(self):
 		head = None #复用上一个命令的字节块
 		for i, line in enumerate(self.content):
-			if not head:
-				head = self.infoList[i]['head']
+			info = self.infoList[i]
+			if self.version > 1:
+				head = bytearray(len(info['head']))
+			elif not head:
+				head = info['head']
 			head[0:len(line)+1] = line + b'\x00'
 			self.content[i] = bytes(head) #固定
 	
@@ -161,6 +195,9 @@ class GSDManager():
 		for m in matchs:
 			if data[m.start()] == self.textBytes[0]:
 				#文本
+				if m.start() < pre:
+					printDebug('忽略重叠', m.start())
+					continue
 				pre = self.getText(data, pre, m)
 			else:
 				#选项
@@ -184,22 +221,38 @@ class GSDManager():
 		nameId = readInt(data, pos)
 		pos += 0xC
 		charCount = readInt(data, pos)
+		if charCount <= 1 or charCount > 0x300:
+			printDebug('文字个数可能不正确', pos)
+			return pre
 		pos += 0xC
 		info['head'] = bytearray(data[m.start():pos])
 		if nameId != 0xFFFFFFFF:
 			info['nameId'] = nameId
-		self.infoList.append(info)
 		end = pos + charCount * 0xC
 		#处理文本
 		bs = bytearray()
 		for i in range(charCount-1): #最后一个是结尾char
+			if data[pos] not in self.ctrlKey and data[pos] != self.charKey:
+				printDebug(f'单字检查失败: pos {pos:X}, byte {data[pos]:X}')
+				return pre
+			if data[pos] != self.charKey and data[pos] != self.endKey:
+				bs.append(data[pos])
+				bs.append(data[pos+4])
+				bs.append(data[pos+8])
+				pos += 0xC
+				continue
 			pos += 0x8
 			for j in range(4):
 				if data[pos+j] == 0:
 					break
 				bs.append(data[pos+j])
 			pos += 0x4
+		#检查结尾
+		if data[pos] != self.endKey:
+			printDebug('结尾检查失败', pos)
+			return pre
 		self.content.append(bs)
+		self.infoList.append(info)
 		pre = end
 		return pre
 
@@ -213,7 +266,7 @@ class GSDManager():
 				info['pre'] = b''
 			start = pos
 			code = readInt(data, pos)
-			if code != 0x23:
+			if code != self.selectByte:
 				break
 			pos += 0xC
 			strLen = readInt(data, pos)
@@ -241,7 +294,16 @@ class GSDManager():
 				pos = 0
 				pre = 0
 				while pos < len(lineData):
-					bs.extend(int2bytes(0x07))
+					if lineData[pos] in self.ctrlKey and pos+2 < len(lineData) and \
+					lineData[pos+1] <= 0x7F and \
+					(pos+3 >= len(lineData) or lineData[pos+3] != 0x00): #校验
+						for j in range(3):
+							one = int2bytes(lineData[pos])
+							bs.extend(one)
+							pos += 1
+						charCount += 1
+						continue
+					bs.extend(int2bytes(self.charKey))
 					bs.extend(int2bytes(0))
 					bs.append(lineData[pos])
 					pre = pos
@@ -253,11 +315,19 @@ class GSDManager():
 						pos += 1
 					bs.extend(b'\x00' * (4 + pre - pos))
 					charCount += 1
-				#最后一个字符需要写入两次，单独处理
-				bs.extend(int2bytes(0x08))
+				#结尾
+				bs.extend(int2bytes(self.endKey))
 				bs.extend(int2bytes(0))
-				bs.extend(lineData[pre:])
-				bs.extend(b'\x00' * (4 + pre - pos))
+				if self.version > 1:
+					#固定
+					bs.extend(int2bytes(0))
+				else:
+					#最后一个字符需要写入两次，单独处理
+					remain = lineData[pre:]
+					if len(remain) > 2:
+						remain = remain[:2]
+					bs.extend(remain)
+					bs.extend(b'\x00' * (4 - len(remain)))
 				charCount += 1
 				#恢复所有字节
 				head = info['head']

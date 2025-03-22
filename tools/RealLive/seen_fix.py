@@ -5,7 +5,7 @@ import os
 import sys
 from tkinter import filedialog
 
-GameType = 7 #此处选择预设游戏
+GameType = 8 #此处选择预设游戏
 OffsetStart = 0x100 #如果是arc_conv解包需要把此处改为0x100
 DefaultDir = ''
 
@@ -40,6 +40,9 @@ XorTable = {
 		bytearray.fromhex('ED 8D 63 CA 38 3D 3C 9F 2C B3 66 43 02 E8 57 AF'),
 	],
 
+	#紅姫
+	8: bytearray.fromhex('8F 05 D7 5F 85 4E 06 68 FD 39 89 41 19 27 9D C0'),
+
 	# >>>>>>> Made by `Cosetto`
 	# 3Ping Lovers！☆一夫二妻の世界へようこそ♪
 	21: bytearray.fromhex('66 8A 20 D4 6E C3 B4 B8 4B F8 38 93 AC AC 70 0A'),
@@ -49,7 +52,7 @@ XorTable = {
 	# 新妻詩乃
 	22: bytearray.fromhex('8C 03 CC 55 9F 1D 41 38 A1 60 D4 12 5D 2D 85 D4'),
 
-	# 新妻こよみ
+	# 新妻こよみ (DL editon)
 	23: bytearray.fromhex('80 05 D7 40 89 15 5D 3C A7 62 D3 17 41 39 86 D0'),
 
 	# らぶ撮りハレーション
@@ -102,6 +105,13 @@ XorTable = {
 
 	#双淫セレブ妻 狂乱の果て
 	67: bytearray.fromhex('8A 0F C9 5B 82 13 5D 38 BE 68 D4 16 45 23 9C DA'),
+
+	# >>>>>>> Made by `Linden10`
+	#孕神～はらかみ～	Harakami
+	81: bytearray.fromhex('67 17 21 BE 6D 27 B5 21 4A 82 39 0E AD C6 73 EE'),
+
+	# >>>>>>> Made by `blw`
+	91: bytearray.fromhex('BE 32 E2 3F EF 2A 32 08 C6 0C BF 39 2D 47 AE F3'),
 }
 
 #加密解密函数相同

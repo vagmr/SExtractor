@@ -14,15 +14,22 @@ __all__ = ['splitToTransDic', 'splitToTransDicAuto',
 		'keepBytes', 'TextConfig'
 ]
 
+#inner text config
 TextConfig = {
 	'orig_fix': {
 		'RealLive': {
 			' +': '' #删除fix填充的空格
+		},
+		'Silky_map': {
+			'<001A0014>': '\n' #换行字节
 		}
 	},
 	'trans_fix': {
 		'RealLive': {
 			'<n>': '<230003C900000000>' #还原换行字节
+		},
+		'Silky_map': {
+			'\n': '<001A0014>' #还原换行字节
 		}
 	}
 }
@@ -209,7 +216,7 @@ def splitToTransDicAuto(orig, trans):
 	if ExVar.joinAfterSplit:
 		#重新分割，但是再合并
 		sep = ExVar.splitParaSep
-		orig = sep.join(listMsgOrig)
+		#orig = sep.join(listMsgOrig) #再合并不影响orig
 		trans = sep.join(listMsgTrans)
 		if orig not in ExVar.transDic:
 			ExVar.transDic[orig] = []
